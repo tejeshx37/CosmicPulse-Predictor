@@ -1,0 +1,22 @@
+version: '3'
+
+services:
+  backend:
+    build:
+      context: ./src/api
+    ports:
+      - "8000:8000"
+    environment:
+      - GCP_PROJECT_ID=solarguardai-project
+      - GCS_BUCKET_NAME=solarguardai-data
+      - NASA_API_KEY=DEMO_KEY
+    volumes:
+      - ./src:/app/src
+
+  frontend:
+    build:
+      context: ./src/frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend

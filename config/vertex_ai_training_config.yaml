@@ -1,0 +1,81 @@
+trainingInput:
+  scaleTier: CUSTOM
+  masterType: n1-standard-8  # 8 vCPUs, 30 GB memory
+  # Alternatively, use GPU for LSTM training
+  # masterType: n1-standard-8-nvidia-tesla-t4
+  
+  hyperparameters:
+    goal: MAXIMIZE
+    hyperparameterMetricTag: val_accuracy
+    maxTrials: 10
+    maxParallelTrials: 2
+    enableTrialEarlyStopping: True
+    
+    params:
+    - parameterName: learning_rate
+      type: DOUBLE
+      minValue: 0.0001
+      maxValue: 0.01
+      scaleType: UNIT_LOG_SCALE
+      
+    - parameterName: batch_size
+      type: INTEGER
+      minValue: 16
+      maxValue: 128
+      scaleType: UNIT_LINEAR_SCALE
+      
+    - parameterName: lstm_units_1
+      type: INTEGER
+      minValue: 32
+      maxValue: 128
+      scaleType: UNIT_LINEAR_SCALE
+      
+    - parameterName: lstm_units_2
+      type: INTEGER
+      minValue: 16
+      maxValue: 64
+      scaleType: UNIT_LINEAR_SCALE
+      
+    - parameterName: dropout_rate
+      type: DOUBLE
+      minValue: 0.1
+      maxValue: 0.5
+      scaleType: UNIT_LINEAR_SCALE
+
+# Container configuration
+containerSpecOverride:
+  imageUri: gcr.io/cloud-aiplatform/training/tf-cpu.2-8:latest  # For TensorFlow 2.8
+  # For GPU training:
+  # imageUri: gcr.io/cloud-aiplatform/training/tf-gpu.2-8:latest
+  
+  args:
+    - --model-type=lstm
+    - --train-data=gs://BUCKET_NAME/data/processed/solar_flare_train.csv
+    - --val-data=gs://BUCKET_NAME/data/processed/solar_flare_val.csv
+    - --test-data=gs://BUCKET_NAME/data/processed/solar_flare_test.csv
+    - --target-column=classType
+    - --sequence-length=10
+    - --epochs=50
+    - --model-dir=/tmp/model
+    - --gcs-bucket=BUCKET_NAME
+
+# Vertex AI experiment tracking
+experimentSpec:
+  displayName: solar_flare_prediction
+  description: Solar flare prediction model training
+  
+  parameters:
+    - name: model_type
+      value: lstm
+    - name: target_column
+      value: classType
+    - name: sequence_length
+      value: 10
+    - name: epochs
+      value: 50
+
+# Artifact tracking
+artifactSpec:
+  outputArtifacts:
+    - type: model
+      destination: gs://BUCKET_NAME/models/

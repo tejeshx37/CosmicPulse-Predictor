@@ -1,0 +1,116 @@
+apiVersion: serving.kubeflow.org/v1beta1
+kind: InferenceService
+metadata:
+  name: solarguardai-predictor
+  annotations:
+    autoscaling.knative.dev/minScale: "1"
+    autoscaling.knative.dev/maxScale: "5"
+spec:
+  predictor:
+    minReplicas: 1
+    maxReplicas: 5
+    serviceAccountName: vertex-ai-user
+    tensorflow:
+      storageUri: "gs://BUCKET_NAME/models/solar_flare_model"
+      resources:
+        requests:
+          cpu: "1"
+          memory: "2Gi"
+        limits:
+          cpu: "2"
+          memory: "4Gi"
+      runtimeVersion: "2.8.0"
+---
+# Vertex AI Model Registry configuration
+modelRegistry:
+  model:
+    name: "solar_flare_predictor"
+    description: "Solar flare prediction model for space weather forecasting"
+    version: "v1"
+    framework: "TensorFlow"
+    labels:
+      environment: "production"
+      type: "time-series"
+      domain: "space-weather"
+  
+  # Monitoring configuration
+  monitoring:
+    enable: true
+    monitoringInterval: 3600  # in seconds (1 hour)
+    driftThreshold: 0.1
+    attributionThreshold: 0.1
+    alertConfig:
+      email: "alerts@example.com"
+      notificationChannels:
+        - "projects/PROJECT_ID/notificationChannels/CHANNEL_ID"
+    
+    # Monitoring objectives
+    objectives:
+      - type: "feature-drift"
+        threshold: 0.1
+      - type: "prediction-drift"
+        threshold: 0.15
+      - type: "feature-attribution"
+        threshold: 0.2
+    
+    # Baseline dataset for drift detection
+    baselineDataset:
+      uri: "gs://BUCKET_NAME/data/processed/baseline_data.csv"
+      format: "csv"
+      targetField: "class_type"
+
+# Endpoint configuration
+endpoint:
+  name: "solar-flare-prediction"
+  trafficSplit:
+    - modelId: "solar_flare_predictor"
+      version: "v1"
+      weight: 100
+  deploymentResourcePool:
+    machineType: "n1-standard-4"
+    acceleratorType: ""  # e.g., "NVIDIA_TESLA_T4" if needed
+    acceleratorCount: 0
+  
+  # Autoscaling configuration
+  autoscaling:
+    minNodeCount: 1
+    maxNodeCount: 5
+    cpuUtilization: 60  # Target CPU utilization percentage
+
+# Explanation configuration
+explanation:
+  enable: true
+  method: "integrated-gradients"
+  parameters:
+    sampleCount: 50
+    featureCount: 10
+  
+  # Input examples for explanations
+  examples:
+    uri: "gs://BUCKET_NAME/data/processed/explanation_examples.jsonl"
+    format: "jsonl"
+    limit: 100
+
+# Security configuration
+security:
+  encryption:
+    kmsKeyName: "projects/PROJECT_ID/locations/LOCATION/keyRings/KEY_RING/cryptoKeys/KEY"
+  
+  # IAM configuration
+  accessControl:
+    serviceAccount: "vertex-ai-user@PROJECT_ID.iam.gserviceaccount.com"
+    roles:
+      - "roles/aiplatform.user"
+      - "roles/storage.objectViewer"
+
+# Logging and monitoring
+logging:
+  logLevel: "INFO"
+  enableStackdriverLogging: true
+  enableCloudLogging: true
+  
+  # Request/response logging
+  requestResponseLogging:
+    enable: true
+    sampleRate: 0.1  # Log 10% of requests
+    destination: "gs://BUCKET_NAME/logs/prediction"
